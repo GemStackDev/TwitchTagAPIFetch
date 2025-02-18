@@ -1,0 +1,11 @@
+# Ignore environment variables (API keys, secrets)
+.env
+
+# Ignore build artifacts
+bin/
+obj/
+
+# Ignore .Net user-specific files
+*.user
+*.suo
+*.vscode
