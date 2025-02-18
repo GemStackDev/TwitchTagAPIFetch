@@ -8,22 +8,23 @@ class Program
 {
     private static readonly string envFilePath = ".env";
     private static readonly HttpClient client = new HttpClient();
-    private static string accessToken;
-    private static string refreshToken;
-    private static string clientId;
-    private static string clientSecret;
+
+    private static string _accessToken;
+    private static string _refreshToken;
+    private static string _clientId;
+    private static string _clientSecret;
 
     static async Task Main()
     {
         Env.Load(); // Load environment variables from .env file
 
-        accessToken = Environment.GetEnvironmentVariable("ACCESS_TOKEN");
-        refreshToken = Environment.GetEnvironmentVariable("REFRESH_TOKEN");
-        clientId = Environment.GetEnvironmentVariable("CLIENT_ID");
-        clientSecret = Environment.GetEnvironmentVariable("CLIENT_SECRET");
+        _accessToken = Environment.GetEnvironmentVariable("ACCESS_TOKEN");
+        _refreshToken = Environment.GetEnvironmentVariable("REFRESH_TOKEN");
+        _clientId = Environment.GetEnvironmentVariable("CLIENT_ID");
+        _clientSecret = Environment.GetEnvironmentVariable("CLIENT_SECRET");
 
-        if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(refreshToken) ||
-            string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+        if (string.IsNullOrEmpty(_accessToken) || string.IsNullOrEmpty(_refreshToken) ||
+            string.IsNullOrEmpty(_clientId) || string.IsNullOrEmpty(_clientSecret))
         {
             Console.WriteLine("Error: Missing required environment variables.");
             return;
@@ -35,8 +36,8 @@ class Program
     private static async Task FetchLeaderboardData()
     {
         client.DefaultRequestHeaders.Clear();
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-        client.DefaultRequestHeaders.Add("Client-Id", clientId);
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_accessToken}");
+        client.DefaultRequestHeaders.Add("Client-Id", _clientId);
 
         HttpResponseMessage response = await client.GetAsync("https://api.twitch.tv/helix/bits/leaderboard?count=2&period=all");
 
@@ -60,7 +61,7 @@ class Program
 
     private static async Task<bool> RefreshAccessToken()
     {
-        var refreshUrl = $"https://id.twitch.tv/oauth2/token?grant_type=refresh_token&refresh_token={refreshToken}&client_id={clientId}&client_secret={clientSecret}";
+        var refreshUrl = $"https://id.twitch.tv/oauth2/token?grant_type=refresh_token&refresh_token={_refreshToken}&client_id={_clientId}&client_secret={_clientSecret}";
 
         // Initiate the request
         HttpResponseMessage refreshResponse = await client.PostAsync(refreshUrl, null);
@@ -77,10 +78,10 @@ class Program
         using JsonDocument json = JsonDocument.Parse(responseContent);
         if (json.RootElement.TryGetProperty("access_token", out JsonElement newAccessToken))
         {
-            accessToken = newAccessToken.GetString();
+            _accessToken = newAccessToken.GetString();
             Console.WriteLine("Token refreshed successfully.");
             // Update the env file function
-            UpdateEnvFile("ACCESS_TOKEN", accessToken);
+            UpdateEnvFile("ACCESS_TOKEN", _accessToken);
             return true;
         }
 
