@@ -1,9 +1,3 @@
-using System;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
-using DotNetEnv;
-
 namespace TwitchRequest
 {
   public static class HelixRequest
