@@ -2,7 +2,7 @@ namespace TwitchRequest
 {
   public static class HelixRequest
   {
-    private static readonly string envFilePath = ".env";
+    private static readonly string secretsFilePath = "Secrets.json";
     private static readonly HttpClient client = new HttpClient();
 
     private static string _accessToken;
@@ -10,18 +10,18 @@ namespace TwitchRequest
     private static string _clientId;
     private static string _clientSecret;
 
+    static HelixRequest()
+    {
+      LoadSecretsFromJson();
+    }
+
     public static async Task FetchLeaderboardData()
     {
-      Env.Load(); // Load environment variables from .env file
-
-      _accessToken = Environment.GetEnvironmentVariable("ACCESS_TOKEN");
-      _refreshToken = Environment.GetEnvironmentVariable("REFRESH_TOKEN");
-      _clientId = Environment.GetEnvironmentVariable("CLIENT_ID");
-      _clientSecret = Environment.GetEnvironmentVariable("CLIENT_SECRET");
+      LoadSecretsFromJson();
 
       if (string.IsNullOrEmpty(_accessToken) || string.IsNullOrEmpty(_refreshToken) || string.IsNullOrEmpty(_clientId) || string.IsNullOrEmpty(_clientSecret))
       {
-        Console.WriteLine("Error: Missing required environment variables.");
+        Console.WriteLine("Error: Missing required secrets. Check secrets.json");
         return;
       }
 
@@ -29,7 +29,7 @@ namespace TwitchRequest
       client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_accessToken}");
       client.DefaultRequestHeaders.Add("Client-Id", _clientId);
 
-      HttpResponseMessage response = await client.GetAsync("https://api.twitch.tv/helix/bits/leaderboard?count=5&period=all");
+      var response = await client.GetAsync("https://api.twitch.tv/helix/bits/leaderboard?count=5&period=all");
 
       if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
       {
@@ -53,7 +53,7 @@ namespace TwitchRequest
     {
       var refreshUrl = $"https://id.twitch.tv/oauth2/token?grant_type=refresh_token&refresh_token={_refreshToken}&client_id={_clientId}&client_secret={_clientSecret}";
 
-      HttpResponseMessage refreshResponse = await client.PostAsync(refreshUrl, null); // Initiate request
+      var refreshResponse = await client.PostAsync(refreshUrl, null); // Initiate request
       // Check if the refresh response is not the success code and exit function with false
       if (!refreshResponse.IsSuccessStatusCode)
       {
@@ -65,12 +65,12 @@ namespace TwitchRequest
       string responseContent = await refreshResponse.Content.ReadAsStringAsync();
       // Parse string into Json format
       using JsonDocument json = JsonDocument.Parse(responseContent);
-      if (json.RootElement.TryGetProperty("access_token", out JsonElement newAccessToken))
+      if (json.RootElement.TryGetProperty("access_token", out var newAccessToken))
       {
         _accessToken = newAccessToken.GetString();
         Console.WriteLine("Token refreshed successfully.");
-        // Update the env file function
-        UpdateEnvFile("ACCESS_TOKEN", _accessToken);
+        // Update the secrets.json
+        UpdateSecretsFile();
         return true;
       }
 
@@ -78,39 +78,59 @@ namespace TwitchRequest
       return false;
     }
 
-    private static void UpdateEnvFile(string key, string newValue)
+    private static void LoadSecretsFromJson()
     {
-      if (!File.Exists(envFilePath))
+      if (!File.Exists(secretsFilePath))
       {
-        Console.WriteLine(".env file not found!");
+        Console.WriteLine($"Error: {secretsFilePath} not found.");
         return;
       }
 
-      // Read all lines from the .env file
-      string[] lines = File.ReadAllLines(envFilePath);
-      bool keyFound = false;
-
-      for (int i = 0; i < lines.Length; i++)
+      try
       {
-        if (lines[i].StartsWith($"{key}=")) // Find the key in the .env file
+        // Read the json file
+        string jsonString = File.ReadAllText(secretsFilePath);
+
+        // Deserialize to secrets class
+        var secrets = JsonSerializer.Deserialize<secrets>(jsonString);
+
+        // Assign fields
+        _clientId = secrets?.ClientId;
+        _clientSecret = secrets?.ClientSecret;
+        _accessToken = secrets?.AccessToken;
+        _refreshToken = secrets?.RefreshToken;
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Error reading {secretsFilePath}: {ex.Message}");
+      }
+    }
+
+    private static void UpdateSecretsFile()
+    {
+      try
+      {
+        // Construct a new Secrets object with the updated values
+        var secrets = new secrets
         {
-          lines[i] = $"{key}={newValue}"; // Update its value
-          keyFound = true;
-          break;
-        }
-      }
+          ClientId = _clientId,
+          ClientSecret = _clientSecret,
+          AccessToken = _accessToken,
+          RefreshToken = _refreshToken,
+        };
 
-      // If key was not found, throw error response
-      if (!keyFound)
-      {
-        Console.WriteLine("Failed to update access token in .env");
-      }
-      else
-      {
-        File.WriteAllLines(envFilePath, lines); // Write updated lines back to the file
-      }
+        // Serialize to JSON
+        string newJson = JsonSerializer.Serialize(secrets, new JsonSerializerOptions { WriteIndented = true });
 
-      Console.WriteLine($".env updated: {key}={newValue}");
+        // Overwrite the old secrets.json
+        File.WriteAllText(secretsFilePath, newJson);
+
+        Console.WriteLine($"Updated {secretsFilePath} with new tokens.");
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Error updating {secretsFilePath}: {ex.Message}");
+      }
     }
   }
 }
