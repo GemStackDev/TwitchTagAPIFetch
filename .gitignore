@@ -1,5 +1,6 @@
 # Ignore environment variables (API keys, secrets)
 .env
+Secrets.json
 secrets.json
 
 # Ignore build artifacts
